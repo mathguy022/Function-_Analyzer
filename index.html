@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Function Analyzer (Enhanced)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.min.js"></script>
+<style>
+/* --- CSS STYLES --- */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;700&display=swap');
+:root {
+    --primary-color: #6366f1; /* Indigo */
+    --primary-hover-color: #4f46e5; /* Darker Indigo */
+    --secondary-color: #14b8a6; /* Teal */
+    --secondary-hover-color: #0d9488; /* Darker Teal */
+    --background-color: #f8fafc; /* Slate 50 */
+    --card-background: #ffffff; /* White */
+    --text-color: #1e293b; /* Slate 800 */
+    --header-color: #0f172a; /* Slate 900 */
+    --border-color: #e2e8f0; /* Slate 200 */
+    --error-color: #ef4444; /* Red 500 */
+    --info-color: #38bdf8; /* Sky Blue 400 */
+    --info-hover-color: #0ea5e9; /* Sky Blue 500 */
+}
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+/* --- Notification Bar --- */
+#notification {
+    position: fixed;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1rem 2rem;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 1000;
+    transition: top 0.5s ease-in-out;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+#notification.show {
+    top: 20px;
+}
+#notification.error { background-color: var(--error-color); }
+#notification.info { background-color: var(--info-color); }
+
+header {
+    background-color: var(--card-background);
+    padding: 1.5rem 2rem;
+    text-align: center;
+    border-bottom: 1px solid var(--border-color);
+}
+header h1 {
+    color: var(--header-color);
+    font-weight: 500;
+}
+header .author {
+    color: #64748b; /* Slate 500 */
+    font-size: 0.9rem;
+}
+main {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+.input-section {
+    background-color: var(--card-background);
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+}
+.input-controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+.input-group {
+    display: flex;
+    flex-direction: column;
+}
+.input-group label {
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+    color: #475569; /* Slate 600 */
+}
+#function-input {
+    min-width: 350px;
+}
+.input-controls input[type="text"], .input-controls input[type="number"] {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.input-controls input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+#analyze-btn {
+    padding: 0.75rem 1.5rem;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    align-self: flex-end; /* Aligns with the bottom of the input fields */
+}
+#analyze-btn:hover {
+    background-color: var(--primary-hover-color);
+}
+.chart-container {
+    position: relative;
+    flex-grow: 1;
+    min-height: 350px;
+}
+.content-wrapper {
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+}
+.column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    min-width: 300px;
+}
+.card {
+    background-color: var(--card-background);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+}
+.card h2 {
+    margin-bottom: 1rem;
+    color: var(--header-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+}
+#function-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+#function-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: center;
+}
+#function-table th, #function-table td {
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+}
+#function-table th {
+    background-color: #f8fafc; /* Slate 50 */
+    position: sticky;
+    top: 0;
+}
+#ai-explanation {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+#chatbot-card {
+    height: 500px;
+}
+#chat-window {
+    flex-grow: 1;
+    overflow-y: auto;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.user-message, .ai-message {
+    padding: 0.6rem 1rem;
+    border-radius: 18px;
+    max-width: 85%;
+    line-length: 1.4;
+}
+.user-message {
+    background-color: var(--primary-color);
+    color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+.ai-message {
+    background-color: #f1f5f9; /* Slate 100 */
+    color: var(--text-color);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+.chat-input-container {
+    display: flex;
+    gap: 0.5rem;
+}
+#chat-input {
+    flex-grow: 1;
+    padding: 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+#chat-send-btn {
+    padding: 0.75rem 1.25rem;
+    background-color: var(--secondary-color);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.3s;
+}
+#chat-send-btn:hover {
+    background-color: var(--secondary-hover-color);
+}
+#loader {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid var(--primary-color);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 3rem auto;
+}
+.hidden { display: none; }
+
+#ai-actions-container {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+}
+.ai-action-btn {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background-color: var(--info-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+.ai-action-btn:hover {
+    background-color: var(--info-hover-color);
+}
+.ai-action-btn:disabled {
+    background-color: #94a3b8; /* Slate 400 */
+    cursor: not-allowed;
+}
+.generated-content {
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-length: 1.7;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: #f8fafc; /* Slate 50 */
+    border-radius: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+</head>
+<body>
+<div id="notification" class=""></div>
+
+<header>
+    <h1>AI Function Analyzer</h1>
+    <p class="author">by Ahmed Said</p>
+</header>
+<main>
+    <section class="input-section">
+        <div class="input-controls">
+            <div class="input-group">
+                <label for="function-input">Enter a function f(x):</label>
+                <input type="text" id="function-input" placeholder="e.g., x^2 - 4*x + 1">
+            </div>
+            <div class="input-group">
+                <label for="x-min">x-Min</label>
+                <input type="number" id="x-min" value="-10">
+            </div>
+            <div class="input-group">
+                <label for="x-max">x-Max</label>
+                <input type="number" id="x-max" value="10">
+            </div>
+            <button id="analyze-btn">Analyze</button>
+        </div>
+    </section>
+
+    <div id="loader" class="hidden"></div>
+
+    <div class="content-wrapper">
+        <div class="column left-column">
+            <section class="card" id="graph-card">
+                <h2>Graphical View</h2>
+                <div class="chart-container">
+                    <canvas id="function-graph"></canvas>
+                </div>
+            </section>
+            <section class="card" id="chatbot-card">
+                <h2>Ask AI</h2>
+                <div id="chat-window">
+                    <div class="ai-message">Hello! Ask me any math question, or analyze a function above to ask about it specifically.</div>
+                </div>
+                <div class="chat-input-container">
+                    <input type="text" id="chat-input" placeholder="Type your question...">
+                    <button id="chat-send-btn">Send</button>
+                </div>
+            </section>
+        </div>
+        <div class="column right-column">
+            <section class="card" id="explanation-card">
+                <h2>Professor AI's Explanation</h2>
+                <div id="ai-explanation">
+                    Enter a function above and click "Analyze" to see the explanation here.
+                </div>
+                <div id="ai-actions-container" class="hidden">
+                    <button id="generate-problems-btn" class="ai-action-btn">✨ Generate Practice Problems</button>
+                    <button id="suggest-application-btn" class="ai-action-btn">✨ Suggest Real-World Use</button>
+                </div>
+            </section>
+            <section class="card" id="table-card">
+                <h2>Numerical Approach (The Table)</h2>
+                <div id="function-table-container">
+                    <table id="function-table">
+                        <thead>
+                            <tr>
+                                <th>x</th>
+                                <th>f(x)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Table data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+</main>
+<script>
+// --- JAVASCRIPT LOGIC ---
+document.addEventListener('DOMContentLoaded', () => {
+    // --- DOM Element References ---
+    const functionInput = document.getElementById('function-input');
+    const analyzeBtn = document.getElementById('analyze-btn');
+    const loader = document.getElementById('loader');
+    const graphCanvas = document.getElementById('function-graph');
+    const tableBody = document.querySelector('#function-table tbody');
+    const aiExplanationDiv = document.getElementById('ai-explanation');
+    const chatWindow = document.getElementById('chat-window');
+    const chatInput = document.getElementById('chat-input');
+    const chatSendBtn = document.getElementById('chat-send-btn');
+    const xMinInput = document.getElementById('x-min');
+    const xMaxInput = document.getElementById('x-max');
+    const notification = document.getElementById('notification');
+    const aiActionsContainer = document.getElementById('ai-actions-container');
+    const generateProblemsBtn = document.getElementById('generate-problems-btn');
+    const suggestApplicationBtn = document.getElementById('suggest-application-btn');
+
+    // --- Global Variables ---
+    let functionChart = null;
+    let currentFunction = '';
+
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=AIzaSyCD3UL03RcS8WQoyfgeG_o2lsJ0lk6BIiQ`;
+
+    // --- Notification Function ---
+    function showNotification(message, type = 'error') {
+        notification.textContent = message;
+        notification.className = type; // 'error' or 'info'
+        notification.classList.add('show');
+        setTimeout(() => {
+            notification.classList.remove('show');
+        }, 3000);
+    }
+
+    // --- Core Analysis Function ---
+    async function handleAnalysis() {
+        const functionStr = functionInput.value.trim();
+        const xMin = parseFloat(xMinInput.value);
+        const xMax = parseFloat(xMaxInput.value);
+
+        if (!functionStr) {
+            showNotification('Please enter a function.');
+            return;
+        }
+        if (isNaN(xMin) || isNaN(xMax) || xMin >= xMax) {
+            showNotification('Please enter a valid range where x-Min is less than x-Max.');
+            return;
+        }
+
+        currentFunction = functionStr;
+        loader.classList.remove('hidden');
+        clearResults();
+
+        try {
+            // Run API call and local visuals generation in parallel
+            await Promise.all([
+                generateAndDisplayExplanation(functionStr),
+                generateAndDisplayVisuals(functionStr, xMin, xMax)
+            ]);
+            // Update chatbot context and show action buttons after successful analysis
+            const firstMessage = chatWindow.querySelector('.ai-message');
+            if (firstMessage) {
+                firstMessage.textContent = `I've analyzed f(x) = ${functionStr}. What would you like to know about it?`;
+            }
+            aiActionsContainer.classList.remove('hidden');
+
+        } catch (error) {
+            console.error('Analysis Error:', error);
+            showNotification(error.message);
+            aiExplanationDiv.textContent = `Error: ${error.message}. Please check the function syntax (e.g., use * for multiplication).`;
+        } finally {
+            loader.classList.add('hidden');
+        }
+    }
+
+    function clearResults() {
+        aiExplanationDiv.innerHTML = 'Enter a function above and click "Analyze" to see the explanation here.';
+        tableBody.innerHTML = '';
+        if (functionChart) {
+            functionChart.destroy();
+        }
+        aiActionsContainer.classList.add('hidden');
+        const generatedContent = document.querySelectorAll('.generated-content');
+        generatedContent.forEach(el => el.remove());
+    }
+
+    // --- Gemini API Functions ---
+    async function generateAndDisplayExplanation(funcStr) {
+        const prompt = `
+        You are an expert math professor named "Professor AI".
+        A student has provided the function: f(x) = ${funcStr}.
+        Your task is to provide a comprehensive explanation in a clear, step-by-step format.
+        1.  **Identify the Function Type:** State what kind of function it is (e.g., Linear, Quadratic, Cubic, Exponential, etc.).
+        2.  **Find Key Features:**
+            * For a LINEAR function (e.g., mx+b), find and explain the slope (m) and the y-intercept (b).
+            * For a QUADRATIC function (e.g., ax^2+bx+c), find the vertex, axis of symmetry, y-intercept, and the x-intercepts (roots), if they exist. Explain how to find each.
+            * For other common functions, identify relevant key points like intercepts, asymptotes, period, etc.
+        3.  **Step-by-Step Guide:** Explain clearly how to find each of these key features manually. Show your work.
+        4.  **Conclusion:** Give a brief summary of the function's behavior (e.g., "This is an upward-opening parabola...").
+        Format your response clearly. Use simple text and line breaks. Do NOT use any LaTeX formatting (no $ signs around variables or numbers). Do NOT use markdown like ** or ##.
+        Put each step on a new line for better readability.
+        List each step in a new line.`;
+
+        const response = await callGeminiAPI(prompt);
+        // Clean up any remaining LaTeX formatting
+        const cleanedResponse = removeLatexFormatting(response);
+        aiExplanationDiv.textContent = cleanedResponse;
+    }
+
+    async function handleChatMessage() {
+        const userMessage = chatInput.value.trim();
+        if (!userMessage) return;
+
+        addMessageToChat(userMessage, 'user');
+        chatInput.value = '';
+
+        const context = currentFunction
+            ? `The user is currently analyzing the function f(x) = ${currentFunction}. Keep this in mind when answering.`
+            : '';
+
+        const prompt = `
+        You are a helpful math tutor chatbot. Answer the following question concisely.
+        ${context}
+        If the question is not about mathematics, politely decline to answer.
+        IMPORTANT: Do NOT use any LaTeX formatting (no $ signs around variables or numbers). Use plain text only.
+        Put each step on a new line for better readability.
+        List each step in a new line.
+        Question: "${userMessage}"`;
+
+        try {
+            const aiResponse = await callGeminiAPI(prompt);
+            // Clean up any remaining LaTeX formatting
+            const cleanedResponse = removeLatexFormatting(aiResponse);
+            addMessageToChat(cleanedResponse, 'ai');
+        } catch (error) {
+            console.error('Chatbot Error:', error);
+            addMessageToChat('Sorry, I encountered an error. Please try again.', 'ai');
+        }
+    }
+    
+    // --- New Gemini-Powered Features ---
+    async function handleGenerateProblems() {
+        if (!currentFunction) return;
+        setActionsLoading(true, 'generate');
+        
+        const prompt = `
+        You are a helpful math teacher. The student is studying the function f(x) = ${currentFunction}.
+        Based on the key features of this function type (e.g., vertex, intercepts for a quadratic; slope, intercept for a linear function), create 3 distinct practice problems.
+        For each problem, state the question clearly. Do not provide the answers.
+        IMPORTANT: Do NOT use any LaTeX formatting (no $ signs around variables or numbers). Use plain text only.
+        Put each step on a new line for better readability.
+        List each step in a new line.
+        Format it nicely with a clear heading like "Practice Problems".`;
+
+        try {
+            const response = await callGeminiAPI(prompt);
+            // Clean up any remaining LaTeX formatting
+            const cleanedResponse = removeLatexFormatting(response);
+            appendGeneratedContent(cleanedResponse);
+        } catch (error) {
+            showNotification('Could not generate practice problems.');
+        } finally {
+            setActionsLoading(false);
+        }
+    }
+
+    async function handleSuggestApplication() {
+        if (!currentFunction) return;
+        setActionsLoading(true, 'suggest');
+
+        const prompt = `
+        You are a creative and knowledgeable teacher. The student is learning about the function f(x) = ${currentFunction}.
+        Describe one simple, clear, real-world scenario or application for this type of function.
+        For example, if it's a parabola, you could talk about the path of a thrown object. If it's an exponential function, you could talk about population growth.
+        Keep the explanation concise and easy to understand for a high school student.
+        IMPORTANT: Do NOT use any LaTeX formatting (no $ signs around variables or numbers). Use plain text only.
+        Put each step on a new line for better readability.
+        List each step in a new line.
+        Format it with a clear heading like "Real-World Application".`;
+
+        try {
+            const response = await callGeminiAPI(prompt);
+            // Clean up any remaining LaTeX formatting
+            const cleanedResponse = removeLatexFormatting(response);
+            appendGeneratedContent(cleanedResponse);
+        } catch (error) {
+            showNotification('Could not suggest an application.');
+        } finally {
+            setActionsLoading(false);
+        }
+    }
+
+    function setActionsLoading(isLoading, type) {
+        generateProblemsBtn.disabled = isLoading;
+        suggestApplicationBtn.disabled = isLoading;
+        if (isLoading) {
+            if (type === 'generate') generateProblemsBtn.textContent = 'Generating...';
+            if (type === 'suggest') suggestApplicationBtn.textContent = 'Generating...';
+        } else {
+            generateProblemsBtn.innerHTML = '✨ Generate Practice Problems';
+            suggestApplicationBtn.innerHTML = '✨ Suggest Real-World Use';
+        }
+    }
+    
+    function appendGeneratedContent(content) {
+        const newContentDiv = document.createElement('div');
+        newContentDiv.className = 'generated-content';
+        // Clean up any remaining LaTeX formatting
+        const cleanedContent = removeLatexFormatting(content);
+        newContentDiv.textContent = cleanedContent;
+        // Append it to the main explanation card, not the div, to keep it separate
+        document.getElementById('explanation-card').appendChild(newContentDiv);
+    }
+
+    // --- Helper function to remove LaTeX formatting ---
+    function removeLatexFormatting(text) {
+        if (!text) return text;
+        
+        // Remove $...$ patterns (LaTeX math mode)
+        let cleaned = text.replace(/\$\$(.*?)\$\$/g, '$1'); // Remove $$...$$
+        cleaned = cleaned.replace(/\$(.*?)\$/g, '$1'); // Remove $...$
+        
+        // Remove other common LaTeX commands
+        cleaned = cleaned.replace(/\\[a-zA-Z]+\{.*?\}/g, ''); // Remove \command{...}
+        cleaned = cleaned.replace(/\\[a-zA-Z]+/g, ''); // Remove \command
+        
+        // Clean up extra spaces
+        cleaned = cleaned.replace(/\s+/g, ' ').trim();
+        
+        return cleaned;
+    }
+
+    // --- Generic API Caller with Exponential Backoff ---
+    async function callGeminiAPI(prompt, retries = 3, delay = 1000) {
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }]
+        };
+
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await fetch(GEMINI_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(`API Error (${response.status}): ${errorData.error.message}`);
+                }
+
+                const data = await response.json();
+                if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                     return data.candidates[0].content.parts[0].text;
+                } else {
+                    return "I'm sorry, I cannot provide a response to that prompt.";
+                }
+
+            } catch (error) {
+                console.warn(`API call attempt ${i + 1} failed. Retrying in ${delay / 1000}s...`);
+                if (i === retries - 1) { 
+                    throw error;
+                }
+                await new Promise(res => setTimeout(res, delay));
+                delay *= 2; 
+            }
+        }
+    }
+
+
+    // --- Visuals and Table Generation ---
+    function generateAndDisplayVisuals(funcStr, xMin, xMax) {
+        try {
+            const node = math.parse(funcStr);
+            const code = node.compile();
+
+            tableBody.innerHTML = '';
+            const step = (xMax - xMin) / 20;
+            for (let i = 0; i <= 20; i++) {
+                const x = xMin + i * step;
+                const y = code.evaluate({ x: x });
+                const row = `<tr><td>${x.toFixed(2)}</td><td>${y.toFixed(4)}</td></tr>`;
+                tableBody.innerHTML += row;
+            }
+
+            const graphPoints = [];
+            const graphStep = (xMax - xMin) / 200; 
+             for (let x = xMin; x <= xMax; x += graphStep) {
+                try {
+                    const y = code.evaluate({ x: x });
+                    if (isFinite(y) && Math.abs(y) < 1e5) {
+                        graphPoints.push({x: x, y: y});
+                    } else {
+                        graphPoints.push({x: x, y: null}); 
+                    }
+                } catch (e) {
+                     graphPoints.push({x: x, y: null});
+                }
+            }
+
+            if (functionChart) {
+                functionChart.destroy();
+            }
+
+            // Create chart with custom plugin for axes
+            functionChart = new Chart(graphCanvas, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: `f(x) = ${funcStr}`,
+                        data: graphPoints,
+                        borderColor: 'var(--primary-color)',
+                        borderWidth: 2.5,
+                        fill: false,
+                        tension: 0.1,
+                        pointRadius: 0,
+                        spanGaps: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: -10,
+                            max: 10,
+                            title: { display: true, text: 'f(x)' },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        },
+                        x: {
+                            type: 'linear',
+                            position: 'bottom',
+                            min: xMin,
+                            max: xMax,
+                            title: { display: true, text: 'x' },
+                            ticks: {
+                                stepSize: 1
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            enabled: true
+                        }
+                    }
+                },
+                plugins: [{
+                    id: 'axes',
+                    beforeDraw: function(chart) {
+                        const ctx = chart.ctx;
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y;
+                        
+                        // Get canvas dimensions
+                        const canvasWidth = chart.width;
+                        const canvasHeight = chart.height;
+                        
+                        // Calculate origin point (where x=0 and y=0 intersect)
+                        const originX = xAxis.getPixelForValue(0);
+                        const originY = yAxis.getPixelForValue(0);
+                        
+                        // Draw X-axis (horizontal line through origin)
+                        ctx.save();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(0, originY);
+                        ctx.lineTo(canvasWidth, originY);
+                        ctx.stroke();
+                        ctx.restore();
+                        
+                        // Draw Y-axis (vertical line through origin)
+                        ctx.save();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(originX, 0);
+                        ctx.lineTo(originX, canvasHeight);
+                        ctx.stroke();
+                        ctx.restore();
+                        
+                        // Add arrowheads for X-axis
+                        ctx.save();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(canvasWidth - 10, originY - 5);
+                        ctx.lineTo(canvasWidth, originY);
+                        ctx.lineTo(canvasWidth - 10, originY + 5);
+                        ctx.stroke();
+                        ctx.restore();
+                        
+                        // Add arrowheads for Y-axis
+                        ctx.save();
+                        ctx.strokeStyle = '#000';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(originX - 5, 10);
+                        ctx.lineTo(originX, 0);
+                        ctx.lineTo(originX + 5, 10);
+                        ctx.stroke();
+                        ctx.restore();
+                        
+                        // Add labels for axes
+                        ctx.save();
+                        ctx.fillStyle = '#000';
+                        ctx.font = '14px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('X', canvasWidth - 10, originY + 20);
+                        ctx.fillText('Y', originX - 20, 10);
+                        ctx.restore();
+                    }
+                }]
+            });
+        } catch (error) {
+            console.error('Error parsing function:', error);
+            throw new Error("Could not parse the function. Please check the syntax.");
+        }
+    }
+
+    // --- Chat Helper Function ---
+    function addMessageToChat(message, sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = sender === 'user' ? 'user-message' : 'ai-message';
+        // Clean up any remaining LaTeX formatting before displaying
+        const cleanedMessage = removeLatexFormatting(message);
+        messageDiv.textContent = cleanedMessage;
+        chatWindow.appendChild(messageDiv);
+        chatWindow.scrollTop = chatWindow.scrollHeight; 
+    }
+
+    // --- Event Listeners ---
+    analyzeBtn.addEventListener('click', handleAnalysis);
+    chatSendBtn.addEventListener('click', handleChatMessage);
+    generateProblemsBtn.addEventListener('click', handleGenerateProblems);
+    suggestApplicationBtn.addEventListener('click', handleSuggestApplication);
+
+    chatInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            handleChatMessage();
+        }
+    });
+
+    functionInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            handleAnalysis();
+        }
+    });
+
+});
+</script>
+</body>
+</html>
